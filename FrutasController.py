@@ -109,9 +109,9 @@ invlist=[] #Lista che contiene gli inverter istanziati
 for IPinv in IPlist:
     inv=InverterSETCP(p=IPinv)
     inv.getInfoModbus()
-    #Se ho commError==2 allora non sono riuscito a istanziare l'inverter
+    #Se ho cerror==2 allora non sono riuscito a istanziare l'inverter
     #In tal caso non lo considero
-    if inv.commError==2:
+    if inv.cerror==2:
         logger.error("Unable to setup inverter p="+IPinv+
          "check the .conf file")
         sg.Popup("ERRORE", "Unable to setup inverter p="+IPinv)
@@ -132,7 +132,7 @@ for inv in invlist:
     sg.Text('Model='+str(inv.model),size=(13,1)),
     sg.Text('SN='+str(inv.SN),size=(20,1)),
     sg.Text("Power="+str(inv.Pac),size=(15,1),key="Pac"+str(i)),
-    sg.Text("Opmode="+str(inv.opmode),size=(15,1),key="opmode"+str(i)),
+    sg.Text("Opmode="+str(inv.mode),size=(15,1),key="opmode"+str(i)),
     sg.Text("Error="+str(inv.error),size=(15,1),key="error"+str(i))
     ])
     i=i+1
@@ -159,36 +159,38 @@ while button!='Quit' and button != sg.WIN_CLOSED:
         inv.getDataModbus_P()
         #Se non riesco a leggere anche un solo inverter, allora
         # emetto un warning e non faccio operazioni a livello di controllo
-        if inv.commError!=0:
-            logger.warning("Failed to communicate with inverter Model="+inv.model+"SN="+inv.SN)
+        if inv.cerror!=0:
+            logger.warning("Failed to communicate with inverter Model="+inv.model+" SN="+inv.SN)
             Pplant=None
             statusPlant="Warning"
             break
         Pplant=Pplant+inv.Pac
         window['Timestamp'].update("Timestamp="+str(datetime.datetime.now()))
         window["Pac"+str(i)].update("Power="+str(inv.Pac))
-        window["opmode"+str(i)].update("Opmode="+str(inv.opmode))
+        window["opmode"+str(i)].update("Opmode="+str(inv.mode))
         window["error"+str(i)].update("Error="+str(inv.error))
-        if inv.opmode=="Standby": StatusPlant="Warning"
+        if inv.mode=="Standby mode": statusPlant="Warning"
         i=i+1
     #Operazioni a livello di controllo
     if statusPlant=="Normal":
         window["P"].update("Tot power="+str(Pplant))
         window["status"].update("Plant status=Normal")
         active=genset.trigger(Pplant)
+        if active: 
+            GPIO.output(J3,GPIO.HIGH)
+            logger.info("P=%6.2f - Genset=ON" %Pplant)
+            window["Genset"].update("Genset=ON")
+        else: 
+            GPIO.output(J3,GPIO.LOW)
+            logger.info("P=%6.2f - Genset=OFF" %Pplant)
+            window["Genset"].update("Genset=OFF")
     else:
         window["P"].update("Tot power="+str(None))
-        window["status".update("Plant status=Warning")]
+        window["status"].update("Plant status=Warning")
         active=0
-    #Controllo del gruppo
-    if active: 
-        window["Genset"].update("Genset=ON")
-        GPIO.output(J3,GPIO.HIGH)
-        logger.info("P=%6.2f - Genset=ON" %Pplant)
-    else: 
         window["Genset"].update("Genset=OFF")
         GPIO.output(J3,GPIO.LOW)
-        logger.info("P=%6.2f - Genset=OFF" %Pplant)
+        logger.warning("Genset=OFF")
 
 #Chiusura del programma
 window.close()

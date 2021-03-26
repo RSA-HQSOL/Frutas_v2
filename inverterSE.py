@@ -32,6 +32,29 @@ def reg2str(regs):
         if (reg&0xFF) != 0: str=str+chr(reg&0xFF)
     return str
 
+#Legge registri inverter SE
+def getDataSE(inverter,key):
+    logger=logging.getLogger(MAIN+".InverterSETCP.getDataSE")
+    logger.setLevel(logging.DEBUG)
+    if not inverter.is_open(): #Se comunicazione non è aperta prova ad aprirle
+        if not inverter.open(): #Se non ci riesce ritorna errore
+                inverter.cerror=2
+                logger.warning("Failed to open comm with inverter IP="+inverter.IP)
+    inverter.cerror=0
+    inverter.regs=inverter.read_holding_registers(inverter.RT[key][0],inverter.RT[key][1])
+    if inverter.regs!=None: 
+        #Lettura andata a buon fine
+        if key=="mode":
+            return inverter.modeTable[inverter.regs[0]]
+        if key=="model" or key=="SN" or key=="modbusVers" or key=="swVers" or key=="swBuild":
+            return reg2str(inverter.regs)
+        return inverter.regs[inverter.RT[key][1]-1]/10**inverter.RT[key][2]
+    else: 
+        #Errore lettura; gestisco il log ed esco con error=4
+        inverter.cerror=4 
+        logger.warning("Failed to read Pac from inverter"+inverter.IP)
+        return None
+
 ############## CLASSI SPECIFICHE INVERTER SE ################
 #Classe che modella il protocollo MODBUS degli inverter SE
 class OEM_SE:
@@ -69,11 +92,11 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         try: 
             ModbusClient.__init__(self,p,port=SERVER_PORT)
             self.IP=p
-            self.commError=0
+            self.cerror=0
         except ValueError:
             logger.error("Init inverter non riuscito p="+p)
             self.IP=""
-            self.commError=1
+            self.cerror=1
 
 #-------------------------------------------------------------------        
     
@@ -82,7 +105,7 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         logger.setLevel(logging.DEBUG)
         if not self.is_open(): #Se comunicazione non è aperta prova ad aprirle
             if not self.open(): #Se non ci riesce ritorna errore
-                self.commError=2
+                self.cerror=2
                 logger.warning("Failed to open comm with inverter IP="+self.IP)
                 #print("Failed to read inverter IP="+self.IP)
                 return        
@@ -102,31 +125,13 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
             self.regs=self.read_holding_registers(self.Info["Pnom"][0],self.Info["Pnom"][1]); self.Pnom=self.regs[self.Info["Pnom"][1]-1]/10**self.Info["Pnom"][2] 
             self.regs=self.read_holding_registers(self.Info["Pmax"][0],self.Info["Pmax"][1]); self.Pmax=self.regs[self.Info["Pmax"][1]-1]/10**self.Info["Pmax"][2]             
             logger.info("Read info of inverter IP="+self.IP)
-            self.commError=0
+            self.cerror=0
         else: #L'inverter non risponde, torno errore
-            self.commError=4
+            self.cerror=4
             logger.warning("Failed to read inverter info IP="+self.IP)
 
     #----------------------------
     def getDataModbus(self):
-        
-        def getDataSE(self,key):
-            logger=logging.getLogger(MAIN+".InverterSETCP.getDataSE")
-            logger.setLevel(logging.DEBUG)
-            if not self.is_open(): #Se comunicazione non è aperta prova ad aprirle
-                if not self.open(): #Se non ci riesce ritorna errore
-                    self.commError=2
-                    logger.warning("Failed to open comm with inverter IP="+self.IP)
-            self.commError=0
-            self.regs=self.read_holding_registers(self.RT[key][0],self.RT[key][1])
-            if self.regs!=None: 
-                #Lettura andata a buon fine
-                return self.regs[self.RT[key][1]-1]/10**self.RT[key][2]
-            else: 
-                #Errore lettura; gestisco il log ed esco con commError=4
-                self.commError=4 
-                logger.warning("Failed to read Pac from inverter"+self.IP)
-                return None
         
         logger=logging.getLogger(MAIN+".InverterSETCP.getDataModbus")
         logger.setLevel(logging.DEBUG)
@@ -189,32 +194,13 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
             #Leggo altri valori
             self.Tint=getDataSE(self,"Tint")
             self.opmode=getDataSE(self,"mode")
-            self.error=getDataSE(self,"Error")
+            self.error=getDataSE(self,"error")
 
             logger.info("Read data of inverter IP="+self.IP)
 
     #-----------------------------------------------------
 
     def getDataModbus_P(self):
-        
-        def getDataSE(self,key):
-            logger=logging.getLogger(MAIN+".InverterSETCP.getDataSE")
-            logger.setLevel(logging.DEBUG)
-            if not self.is_open(): #Se comunicazione non è aperta prova ad aprirle
-                if not self.open(): #Se non ci riesce ritorna errore
-                    self.commError=2
-                    logger.warning("Failed to open comm with inverter IP="+self.IP)
-            self.commError=0
-            self.regs=self.read_holding_registers(self.RT[key][0],self.RT[key][1])
-            if self.regs!=None: 
-                #Lettura andata a buon fine
-                return self.regs[self.RT[key][1]-1]/10**self.RT[key][2]
-            else: 
-                #Errore lettura; gestisco il log ed esco con commError=4
-                self.commError=4 
-                logger.warning("Failed to read Pac from inverter"+self.IP)
-                return None
-        
         logger=logging.getLogger(MAIN+".InverterSETCP.getDataModbus_P")
         logger.setLevel(logging.DEBUG)
         
@@ -222,6 +208,7 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         self.PgridA=getDataSE(self,"PgridA")
         self.PloadA=getDataSE(self,"PloadA")
         self.PinvA=getDataSE(self,"PinvA")
+        self.mode=getDataSE(self,"mode")
         logger.info("Read data of inverter IP="+self.IP)
 
 ########################################
@@ -232,13 +219,14 @@ class InverterSE(Inverter,OEM_SE,mb.Instrument):
     def __init__(self,mppt=1,phases=1,p="COM4",b=19200,a=1):
         Inverter.__init__(self,mppt,phases)
         OEM_SE.__init__(self)
+        #All'oggetto Inverter vengono aggiunti i valori p,b,a,cerror
         try:
             mb.Instrument.__init__(self,p,a)
             self.serial.baudrate=b #Necessario perché il constructor di mb.Instrument setta il baudrate a 19200
-            self.commError=0
+            self.cerror=0
         except IOError:
             print("Errore apertura comunicazione inverter")
-            self.commError=1
+            self.cerror=1
     
     #----------------------------------------
     
@@ -257,10 +245,10 @@ class InverterSE(Inverter,OEM_SE,mb.Instrument):
             self.Pnom  =    self.read_register(self.Info["Pnom"][0],self.Info["Pnom"][2])
             self.Pmax  =    self.read_register(self.Info["Pmax"][0],self.Info["Pmax"][2])
             #self.serial.close()
-            self.commError=0
+            self.cerror=0
         except IOError:
             print("Errore lettura inverter")
-            self.commError=2
+            self.cerror=2
 
     #----------------------------------------
 
@@ -339,10 +327,10 @@ class InverterSE(Inverter,OEM_SE,mb.Instrument):
                     self.V4   =self.read_register(self.RT["V4"][0],  self.RT["V4"][2])
                     self.I4   =self.read_register(self.RT["I4"][0],  self.RT["I4"][2])
             #self.serial.close()
-            self.commError=0
+            self.cerror=0
         except IOError:
             print("Errore lettura inverter")
-            self.commError=2
+            self.cerror=2
 
     #----------------------------------------
 
@@ -352,10 +340,10 @@ class InverterSE(Inverter,OEM_SE,mb.Instrument):
             self.Pac  =self.read_long(self.RT["Pac"][0])/10**self.RT["Pac"][2]
             #print(self.Pac)
             #self.serial.close()
-            self.commError=0
+            self.cerror=0
         except IOError:
             print("Errore lettura inverter")
-            self.commError=2
+            self.cerror=2
 
     #----------------------------------------
 
@@ -366,8 +354,8 @@ class InverterSE(Inverter,OEM_SE,mb.Instrument):
             if Pcom>100: Pcom=100
             self.write_register(12293,Pcom,functioncode=6)
             #self.serial.close()
-            self.commError=0
+            self.cerror=0
         except IOError:
             print("Errore scrittura inverter")
-            self.commError=3
+            self.cerror=3
 

@@ -27,7 +27,7 @@ class Inverter:
         self.swBuild=None
         #inverter status
         self.temp=None
-        self.opmode=None
+        self.mode=None
         self.error=None
         self.Etoday=None
         self.Etot=None
