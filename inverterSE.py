@@ -48,6 +48,10 @@ def readSE(inverter,key):
         #Lettura andata a buon fine
         if key=="mode":
             return inverter.modeTable[inverter.regs[0]]
+        if key=="PlimFun":
+            return inverter.PlimFunTable[inverter.regs[0]]
+        if key=="error":
+            return bin(inverter.regs[0])+"-"+bin(inverter.regs[1])
         if key=="model" or key=="SN" or key=="modbusVers" or key=="swVers" or key=="swBuild":
             return reg2str(inverter.regs)
         return inverter.regs[inverter.reg[key][1]-1]/10**inverter.reg[key][2]
@@ -72,16 +76,17 @@ class OEM_SE:
          "Tint":[0x101C,1,0],"mode":[0x101D,1],"error":[0x101E,2],"Pac":[0x1037,2,1],"Qac":[0x1039,2,1],"PFac":[0x103D,1,3],
          "VgridA":[0x131A,1,1],"VgridB":[0x131B,1,1],"VgridC":[0x131C,1,1],"IgridA":[0x131D,2,2],"IgridB":[0x131D,1,2],"IgridC":[0x1321,1,2],"PgridA":[0x1300,2,1],"PgridB":[0x1302,2,1],"PgridC":[0x1304,2,1],
          "VloadA":[0x1323,1,1],"VloadB":[0x1324,1,1],"VloadC":[0x1325,1,1],"IloadA":[0x1326,2,2],"IloadB":[0x1328,2,2],"IloadC":[0x132A,2,2],"PloadA":[0x130A,2,1],"PloadB":[0x130C,2,1],"PloadC":[0x130E,2,1],
-         "IinvA":[0x132C,2,2],"IinvB":[0x132E,2,2],"IinvC":[0x1330,2,2],"PinvA":[0x1312,2,1],"PinvB":[0x1314,2,1],"PinvC":[0x1316,2,1]
+         "IinvA":[0x132C,2,2],"IinvB":[0x132E,2,2],"IinvC":[0x1330,2,2],"PinvA":[0x1312,2,1],"PinvB":[0x1314,2,1],"PinvC":[0x1316,2,1],
+         "PlimFun":[0x303B,1]
          }
         self.modeTable={0x00:"Initial mode", 0x01:"Standby mode", 0x03:"Online mode", 0x05:"Fault mode", 0x09:"Shutdown mode"}
+        self.PlimFunTable={0x00:"Disable", 0x02:"Ext CT", 0x03:"Ext EM", 0x05:"Fault mode", 0x09:"Shutdown mode"}
 
 ########################################################################
 
 #Classe che modella inverter SE con accesso MODBUS via TCP
 #Usa la libreria pyModbusTCP
 class InverterSETCP(Inverter,OEM_SE,ModbusClient):
-    
     #Setto il logger che è derivato da quello usato nel main
     logger=logging.getLogger(MAIN+".InverterSETCP")
     logger.setLevel(logging.DEBUG)
@@ -91,6 +96,7 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         logger.setLevel(logging.DEBUG)
         Inverter.__init__(self)
         OEM_SE.__init__(self)
+        self.PlimFun=None
         try: 
             ModbusClient.__init__(self,p,port=SERVER_PORT)
             self.IP=p
@@ -216,6 +222,13 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         """
         self.mode=readSE(self,"mode")
         if self.cerror!=0: logger.error("leggendo mode cerror="+str(self.cerror));return
+        self.error=readSE(self,"error")
+        if self.cerror!=0: logger.error("leggendo error cerror="+str(self.cerror));return
+        self.PlimFun=readSE(self,"PlimFun")
+        if self.cerror!=0: logger.error("leggendo PlimFun="+str(self.cerror));return
+        
+        
+        
         logger.info("Read power data of inverter IP="+self.IP)
 
 ########################################

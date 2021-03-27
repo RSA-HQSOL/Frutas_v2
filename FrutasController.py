@@ -130,9 +130,10 @@ for inv in invlist:
     sg.Text('Model='+str(inv.model),size=(13,1),key="Model"+str(i)),
     sg.Text('SN='+str(inv.SN),size=(20,1), key="SN"+str(i)),
     sg.Text("Power="+str(inv.Pac),size=(15,1),key="Pac"+str(i)),
-    sg.Text("Opmode="+str(inv.mode),size=(15,1),key="opmode"+str(i)),
-    sg.Text("Error="+str(inv.error),size=(15,1),key="error"+str(i)),
-    sg.Text("cerror="+str(inv.cerror),size=(15,1),key="cerror"+str(i))
+    sg.Text("Opmode="+str(inv.mode),size=(20,1),key="opmode"+str(i)),
+    sg.Text("Error="+str(inv.error),size=(20,1),key="error"+str(i)),
+    sg.Text("cerror="+str(inv.cerror),size=(15,1),key="cerror"+str(i)),
+    sg.Text("PlimFun="+str(inv.PlimFun),size=(15,1),key="PlimFun"+str(i))
     ])
     i=i+1
 #Dati impianto
@@ -168,6 +169,7 @@ while button!='Quit' and button != sg.WIN_CLOSED:
             window["opmode"+str(i)].update("Opmode="+str(None))
             window["error"+str(i)].update("Error="+str(None))
             window["cerror"+str(i)].update("cerror="+str(inv.cerror))
+            window["PlimFun"+str(i)].update("PlimFun="+str(inv.PlimFun))
 
         else: 
             Pplant=Pplant+inv.Pac
@@ -178,6 +180,7 @@ while button!='Quit' and button != sg.WIN_CLOSED:
             window["opmode"+str(i)].update("Opmode="+str(inv.mode))
             window["error"+str(i)].update("Error="+str(inv.error))
             window["cerror"+str(i)].update("cerror="+str(inv.cerror))
+            window["PlimFun"+str(i)].update("PlimFun="+str(inv.PlimFun))
         i=i+1
         
     #Operazioni a livello di controllo impianto
