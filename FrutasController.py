@@ -24,6 +24,22 @@ from ClassRelay import *
 #Definisco sampling time delle misure
 DELTAT=5000
 
+#Definisco parametri del relay
+TRIGGER=10000
+HYSTPLUS=1000
+HYSTMINUS=0
+
+#setting iniziale scheda relays
+J2=4
+J3=22
+J4=6
+J5=26
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(J2,GPIO.OUT)
+GPIO.setup(J3,GPIO.OUT)
+GPIO.setup(J4,GPIO.OUT)
+GPIO.setup(J5,GPIO.OUT)
+
 #setup del logger
 logger = logging.getLogger("main")
 #handler a file rotativo
@@ -43,20 +59,9 @@ logger.addHandler(handler)
 logger.addHandler(ch)
 logger.setLevel(logging.DEBUG)
 
-#setting iniziale scheda relays
-J2=4
-J3=22
-J4=6
-J5=26
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(J2,GPIO.OUT)
-GPIO.setup(J3,GPIO.OUT)
-GPIO.setup(J4,GPIO.OUT)
-GPIO.setup(J5,GPIO.OUT)
-
 logger.info("Program started")
 #Setting del relè del gruppo elettrogeno
-genset=relay(50,2,0)
+genset=relay(TRIGGER,HYSTPLUS,HYSTMINUS)
 
 #Schermata di configurazione iniziale
 #Verifica se esiste un file contenente l'ultimo path al file dati usato
@@ -102,20 +107,13 @@ while True:
             sg.Popup("ERRORE", "File non valido")
 
 logger.info("Configurazione acquisita, inizio ciclo principale")
-#CICLO PRINCIPALE
+
+########################CICLO PRINCIPALE#####################
 #Ho acquisito la configurazione, ora inizio il ciclo principale
 t=0
 invlist=[] #Lista che contiene gli inverter istanziati
 for IPinv in IPlist:
     inv=InverterSETCP(p=IPinv)
-    inv.getInfoModbus()
-    #Se ho cerror==2 allora non sono riuscito a istanziare l'inverter
-    #In tal caso non lo considero
-    if inv.cerror==2:
-        logger.error("Unable to setup inverter p="+IPinv+
-         "check the .conf file")
-        sg.Popup("ERRORE", "Unable to setup inverter p="+IPinv)
-        continue
     invlist.append(inv)
 
 #Definisco layout della schermata principale 
@@ -129,17 +127,18 @@ layout=[
 i=1
 for inv in invlist:
     layout.append([sg.Text('IP address:'+inv.IP, size=(22, 1)),
-    sg.Text('Model='+str(inv.model),size=(13,1)),
-    sg.Text('SN='+str(inv.SN),size=(20,1)),
+    sg.Text('Model='+str(inv.model),size=(13,1),key="Model"+str(i)),
+    sg.Text('SN='+str(inv.SN),size=(20,1), key="SN"+str(i)),
     sg.Text("Power="+str(inv.Pac),size=(15,1),key="Pac"+str(i)),
     sg.Text("Opmode="+str(inv.mode),size=(15,1),key="opmode"+str(i)),
-    sg.Text("Error="+str(inv.error),size=(15,1),key="error"+str(i))
+    sg.Text("Error="+str(inv.error),size=(15,1),key="error"+str(i)),
+    sg.Text("cerror="+str(inv.cerror),size=(15,1),key="cerror"+str(i))
     ])
     i=i+1
-#Ancora dati generali
+#Dati impianto
 layout.append([
     sg.Text("Ptot=", size=(22,1),key="P"), 
-    sg.Text("Genset=", size=(15,1),key="Genset"),
+    sg.Text("Genset=", size=(13,1),key="Genset"),
     sg.Text("Plant Status=", size=(22,1),key="status")
     ])
 layout.append([sg.Quit()])
@@ -153,25 +152,35 @@ while button!='Quit' and button != sg.WIN_CLOSED:
     Pplant=0
     statusPlant="Normal"
     i=1
+    window['Timestamp'].update("Timestamp="+str(datetime.datetime.now()))
     #Leggo i dati degli inverter
     for inv in invlist:
-        if inv.model==None: inv.getInfoModbus() #Se mnon era ancora riuscito a leggere le info
+        if inv.model==None: 
+            inv.getInfoModbus() #Se mnon era ancora riuscito a leggere le info
+            window['Model'+str(i)].update("Model="+str(inv.model))
+            window['SN'+str(i)].update("SN="+str(inv.SN))
         inv.getDataModbus_P()
-        #Se non riesco a leggere anche un solo inverter, allora
-        # emetto un warning e non faccio operazioni a livello di controllo
+        #Se non riesco a leggere un inverter, allora metto il plat in stato di warning
         if inv.cerror!=0:
-            logger.warning("Failed to communicate with inverter Model="+inv.model+" SN="+inv.SN)
-            Pplant=None
+            logger.warning("Failed to communicate with inverter Model="+str(inv.model)+" SN="+str(inv.SN)+" IP="+str(inv.IP))
             statusPlant="Warning"
-            break
-        Pplant=Pplant+inv.Pac
-        window['Timestamp'].update("Timestamp="+str(datetime.datetime.now()))
-        window["Pac"+str(i)].update("Power="+str(inv.Pac))
-        window["opmode"+str(i)].update("Opmode="+str(inv.mode))
-        window["error"+str(i)].update("Error="+str(inv.error))
-        if inv.mode=="Standby mode": statusPlant="Warning"
+            window["Pac"+str(i)].update("Power="+str(None))
+            window["opmode"+str(i)].update("Opmode="+str(None))
+            window["error"+str(i)].update("Error="+str(None))
+            window["cerror"+str(i)].update("cerror="+str(inv.cerror))
+
+        else: 
+            Pplant=Pplant+inv.Pac
+            #Anche se  in modalit Standby meeto il plant in warning
+            if inv.mode=="Standby mode": statusPlant="Warning"
+            #Stampo i dati dell'inverter
+            window["Pac"+str(i)].update("Power="+str(inv.Pac))
+            window["opmode"+str(i)].update("Opmode="+str(inv.mode))
+            window["error"+str(i)].update("Error="+str(inv.error))
+            window["cerror"+str(i)].update("cerror="+str(inv.cerror))
         i=i+1
-    #Operazioni a livello di controllo
+        
+    #Operazioni a livello di controllo impianto
     if statusPlant=="Normal":
         window["P"].update("Tot power="+str(Pplant))
         window["status"].update("Plant status=Normal")
