@@ -205,15 +205,17 @@ class InverterSETCP(Inverter,OEM_SE,ModbusClient):
         logger.setLevel(logging.DEBUG)
         
         self.Pac=readSE(self,"Pac")
-        if self.cerror!=0: logger.error("Cerror="+str(self.cerror));return
+        if self.cerror!=0: logger.error("leggendo Pac cerror="+str(self.cerror));return
+        """
         self.PgridA=readSE(self,"PgridA")
-        if self.cerror!=0: logger.error("Cerror="+str(self.cerror));return
+        if self.cerror!=0: logger.error("leggendo PgridA cerror="+str(self.cerror));return
         self.PloadA=readSE(self,"PloadA")
-        if self.cerror!=0: logger.error("Cerror="+str(self.cerror));return
+        if self.cerror!=0: logger.error("leggendo PloadA cerror="+str(self.cerror));return
         self.PinvA=readSE(self,"PinvA")
-        if self.cerror!=0: logger.error("Cerror="+str(self.cerror));return
+        if self.cerror!=0: logger.error("leggendo PinvA cerror="+str(self.cerror));return
+        """
         self.mode=readSE(self,"mode")
-        if self.cerror!=0: logger.error("Cerror="+str(self.cerror));return
+        if self.cerror!=0: logger.error("leggendo mode cerror="+str(self.cerror));return
         logger.info("Read power data of inverter IP="+self.IP)
 
 ########################################
